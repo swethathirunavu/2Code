@@ -19,18 +19,23 @@ import io
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="🧠 Sensai AI - Doc→Quiz Bot",
+    page_title="🧠 SensAI - Doc→Quiz Bot",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Initialize OpenAI
+# Initialize OpenAI with hackathon configuration
 if 'openai_api_key' not in st.session_state:
     st.session_state.openai_api_key = st.secrets.get("OPENAI_API_KEY", "")
 
-if st.session_state.openai_api_key:
-    openai.api_key = st.session_state.openai_api_key
+# Initialize OpenAI client with hackathon settings
+def initialize_openai_client(api_key):
+    """Initialize OpenAI client with hackathon configuration"""
+    return openai.OpenAI(
+        api_key=api_key,
+        base_url="https://agent.dev.hyperverge.org"
+    )
 
 # Database setup for sensai features
 def init_sensai_db():
@@ -268,7 +273,7 @@ class SensaiQuizGenerator:
     @staticmethod
     def generate_mcqs_with_citations(chunk: Dict, difficulty: str = "medium") -> List[Dict]:
         """Generate MCQs with proper citations using Sensai prompts"""
-        if not openai.api_key:
+        if not st.session_state.openai_api_key:
             st.error("🔑 OpenAI API key not found. Please add it to your Streamlit secrets.")
             return []
         
@@ -282,8 +287,11 @@ class SensaiQuizGenerator:
         )
         
         try:
-            response = openai.chat.completions.create(
-                model="gpt-4o",
+            # Initialize OpenAI client with hackathon configuration
+            client = initialize_openai_client(st.session_state.openai_api_key)
+            
+            response = client.chat.completions.create(
+                model="openai/gpt-4o-mini",  # Updated model name for hackathon
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1200,
                 temperature=0.3
@@ -664,15 +672,16 @@ def main():
         
         # API Key input
         if not st.session_state.openai_api_key:
-            api_key = st.text_input("🔑 OpenAI API Key", type="password", 
-                                  help="Required for AI question generation")
+            api_key = st.text_input("🔑 Hackathon API Key", type="password", 
+                                  help="Use the API key provided for the hackathon")
             if api_key:
                 st.session_state.openai_api_key = api_key
-                openai.api_key = api_key
                 st.success("✅ API Key configured!")
                 st.rerun()
         else:
             st.success("✅ API Key loaded!")
+            # Show configuration details
+            st.info("🔧 Using hackathon configuration:\n- Base URL: agent.dev.hyperverge.org\n- Model: openai/gpt-4o-mini")
         
         # Difficulty selector with adaptive hints
         st.markdown("**🎚️ Quiz Difficulty**")
@@ -802,7 +811,7 @@ def main():
             # Process button
             if st.button("🚀 Generate Sensai Quiz", use_container_width=True, type="primary"):
                 if not st.session_state.openai_api_key:
-                    st.error("🔑 Please provide your OpenAI API key in the sidebar!")
+                    st.error("🔑 Please provide your hackathon API key in the sidebar!")
                     return
                 
                 # Processing pipeline
@@ -1036,8 +1045,11 @@ def main():
                         if hasattr(st.session_state, 'chunks'):
                             context = "\n\n".join([chunk['text'][:1000] for chunk in st.session_state.chunks[:3]])
                         
-                        response = openai.chat.completions.create(
-                            model="gpt-4o",
+                        # Initialize OpenAI client with hackathon configuration
+                        client = initialize_openai_client(st.session_state.openai_api_key)
+                        
+                        response = client.chat.completions.create(
+                            model="openai/gpt-4o-mini",
                             messages=[
                                 {
                                     "role": "system", 
@@ -1066,7 +1078,7 @@ def main():
                     except Exception as e:
                         st.error(f"❌ AI Tutor error: {str(e)}")
             else:
-                st.warning("🔑 OpenAI API key required for AI tutoring features.")
+                st.warning("🔑 Hackathon API key required for AI tutoring features.")
         
         # Action buttons
         st.markdown("---")
@@ -1102,6 +1114,7 @@ def main():
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p>🧠 <strong>Sensai AI</strong> - Intelligent Document-to-Quiz Transformation</p>
         <p>🚀 Features: Adaptive Difficulty • Citation-Based Questions • Coverage Analysis • AI Tutoring</p>
+        <p>🔧 <strong>Hackathon Configuration:</strong> Using agent.dev.hyperverge.org with GPT-4o-mini</p>
     </div>
     """, unsafe_allow_html=True)
 
