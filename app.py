@@ -1,5 +1,5 @@
 import streamlit as st
-import PyMuPDF
+import PyPDF2
 import docx
 import json
 import sqlite3
@@ -15,6 +15,7 @@ import pandas as pd
 import re
 import time
 import random
+import io
 
 # Configure Streamlit page
 st.set_page_config(
@@ -139,32 +140,49 @@ CITATION: Page {page_num}: "{snippet}"
 class SensaiDocumentProcessor:
     @staticmethod
     def extract_text_from_pdf(file) -> tuple[str, int, List[Dict]]:
-        """Extract text from PDF with page tracking for citations"""
-        doc = PyMuPDF.open(stream=file.read(), filetype="pdf")
-        text = ""
-        page_count = len(doc)
-        page_content = []
-        
-        # Limit to first 20 pages if document is large
-        max_pages = min(20, page_count)
-        
-        if page_count > 20:
-            st.warning(f"🔍 Large doc detected ({page_count} pages). Processing first 20 pages only.")
-        
-        for page_num in range(max_pages):
-            page = doc[page_num]
-            page_text = page.get_text()
-            text += f"\n--- Page {page_num + 1} ---\n"
-            text += page_text
+        """Extract text from PDF with page tracking for citations using PyPDF2"""
+        try:
+            # Reset file pointer
+            file.seek(0)
             
-            page_content.append({
-                "page_num": page_num + 1,
-                "text": page_text,
-                "word_count": len(page_text.split())
-            })
-        
-        doc.close()
-        return text, page_count, page_content
+            # Use PyPDF2 instead of PyMuPDF for better Streamlit compatibility
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file.read()))
+            text = ""
+            page_count = len(pdf_reader.pages)
+            page_content = []
+            
+            # Limit to first 20 pages if document is large
+            max_pages = min(20, page_count)
+            
+            if page_count > 20:
+                st.warning(f"🔍 Large doc detected ({page_count} pages). Processing first 20 pages only.")
+            
+            for page_num in range(max_pages):
+                try:
+                    page = pdf_reader.pages[page_num]
+                    page_text = page.extract_text()
+                    
+                    # Clean extracted text
+                    page_text = page_text.replace('\n\n', '\n').strip()
+                    
+                    if page_text:  # Only add if page has text
+                        text += f"\n--- Page {page_num + 1} ---\n"
+                        text += page_text + "\n"
+                        
+                        page_content.append({
+                            "page_num": page_num + 1,
+                            "text": page_text,
+                            "word_count": len(page_text.split())
+                        })
+                except Exception as page_error:
+                    st.warning(f"⚠️ Could not process page {page_num + 1}: {str(page_error)}")
+                    continue
+            
+            return text, page_count, page_content
+            
+        except Exception as e:
+            st.error(f"❌ PDF processing error: {str(e)}")
+            return "", 0, []
 
     @staticmethod
     def extract_text_from_docx(file) -> tuple[str, int, List[Dict]]:
